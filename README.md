@@ -20,6 +20,15 @@ To execut a simulation it is necessary to call the run.sh, with a configuration 
 $ ./run.sh config/kademlia.cfg
 ```
 
+## GossipSub validation and topology inference
+
+All documentation for GossipSub simulator validation, real-deployment comparison,
+topology-inference attacks, campaign execution, aggregation, and plotting is in:
+
+[simulator/topology_inference/README.md](simulator/topology_inference/README.md)
+
+In this README you can find exact instructions to reproduce the results of the thesis.
+
 ## How to create your own scenario file
 
 Follow PeerSim [documentation](http://peersim.sourceforge.net/tutorialed/)

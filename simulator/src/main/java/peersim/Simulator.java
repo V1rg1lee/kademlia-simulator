@@ -24,6 +24,7 @@ import peersim.cdsim.*;
 import peersim.config.*;
 import peersim.core.*;
 import peersim.edsim.*;
+import peersim.kademlia.KademliaObserver;
 
 /**
  * This is the main entry point to peersim. This class loads configuration and detects the
@@ -158,6 +159,7 @@ public class Simulator {
         System.err.print("Simulator: starting experiment " + k);
         System.err.println(" invoking " + simName[SIMID]);
         System.err.println("Random seed: " + CommonState.r.getLastSeed());
+        KademliaObserver.prepareForExperiment(k, CommonState.r.getLastSeed());
         System.out.println("\n\n");
 
         // XXX could be done through reflection, but

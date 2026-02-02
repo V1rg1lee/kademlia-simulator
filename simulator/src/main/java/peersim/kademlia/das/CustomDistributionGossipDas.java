@@ -2,6 +2,7 @@ package peersim.kademlia.das;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import peersim.config.Configuration;
 import peersim.core.CommonState;
@@ -10,6 +11,7 @@ import peersim.core.Node;
 import peersim.kademlia.KademliaCommonConfig;
 import peersim.kademlia.KademliaNode;
 import peersim.kademlia.UniformRandomGenerator;
+import peersim.kademlia.gossipsub.GossipCommonConfig;
 import peersim.kademlia.gossipsub.GossipSubProtocol;
 
 /**
@@ -50,6 +52,7 @@ public class CustomDistributionGossipDas implements peersim.core.Control {
 
   private BigInteger builderAddress;
   private UniformRandomGenerator urg;
+  private double degradedPeerRatio;
 
   public CustomDistributionGossipDas(String prefix) {
     protocolKadID = Configuration.getPid(prefix + "." + PAR_PROT_KAD);
@@ -63,6 +66,8 @@ public class CustomDistributionGossipDas implements peersim.core.Control {
     evilRatioNonValidator = Configuration.getDouble(prefix + "." + PAR_EVIL_RATIO_NONVAL, 0.0);
     urg = new UniformRandomGenerator(KademliaCommonConfig.BITS, CommonState.r);
     validatorRate = Configuration.getDouble(prefix + "." + PAR_VALIDATOR_RATE, 1.0);
+    GossipCommonConfig.loadFromConfig();
+    degradedPeerRatio = GossipCommonConfig.degradedPeerRatio;
   }
 
   public boolean execute() {
@@ -81,6 +86,8 @@ public class CustomDistributionGossipDas implements peersim.core.Control {
     List<Node> evilNodes = new ArrayList<>();
     List<Node> validators = new ArrayList<>();
     List<BigInteger> evilIds = new ArrayList<>();
+    List<BigInteger> gossipIds = new ArrayList<>();
+    List<GossipSubProtocol> degradedCandidates = new ArrayList<>();
     numValidators = numValidators - numEvilValidatorNodes;
     SearchTable searchTable = new SearchTable();
 
@@ -97,6 +104,7 @@ public class CustomDistributionGossipDas implements peersim.core.Control {
       gossipProt = ((GossipSubProtocol) (Network.get(i).getProtocol(protocolKadID)));
       gossipProt.setProtocolID(protocolKadID);
       gossipProt.setNode(node);
+      gossipIds.add(gossipProt.getGossipNode().getId());
 
       if (i == 0) {
         dasProt = ((GossipDAS) (Network.get(i).getProtocol(protocolDasBuilderID)));
@@ -140,6 +148,22 @@ public class CustomDistributionGossipDas implements peersim.core.Control {
 
       generalNode.getGossipDASProtocol().setSearchTable(searchTable);
       generalNode.getGossipDASProtocol().setBuilderAddress(builderAddress);
+
+      if (i > 0) {
+        degradedCandidates.add(gossipProt);
+      }
+    }
+
+    if (GossipCommonConfig.singleTopicEnabled) {
+      for (BigInteger gossipId : gossipIds) {
+        GossipSubProtocol.registerBootstrapPeer(GossipCommonConfig.singleTopicName, gossipId);
+      }
+    }
+
+    int degradedPeers = (int) Math.round(degradedCandidates.size() * degradedPeerRatio);
+    Collections.shuffle(degradedCandidates, CommonState.r);
+    for (int i = 0; i < degradedCandidates.size(); i++) {
+      degradedCandidates.get(i).setDegradedPeer(i < degradedPeers);
     }
 
     System.out.println("Validators " + validatorsIds.size());

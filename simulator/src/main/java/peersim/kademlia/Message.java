@@ -1,6 +1,8 @@
 package peersim.kademlia;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,47 @@ import peersim.kademlia.das.SeedingSampleBody;
  */
 // ______________________________________________________________________________________
 public class Message extends SimpleEvent {
+
+  public enum PruneReasonTag {
+    GRAFT_REJECTION_AT_CAPACITY,
+    GRAFT_REJECTION_SCORE,
+    GRAFT_REJECTION_BACKOFF,
+    LOW_SCORE_PRUNE,
+    OVERSUBSCRIPTION_PRUNE,
+    LEAVE_OR_UNSUBSCRIBE,
+    OTHER
+  }
+
+  public static class PrunePayload {
+    private final long backoffHeartbeats;
+    private final List<BigInteger> pxPeers;
+    private final PruneReasonTag pruneReason;
+
+    public PrunePayload(long backoffHeartbeats, List<BigInteger> pxPeers) {
+      this(backoffHeartbeats, pxPeers, PruneReasonTag.OTHER);
+    }
+
+    public PrunePayload(
+        long backoffHeartbeats, List<BigInteger> pxPeers, PruneReasonTag pruneReason) {
+      this.backoffHeartbeats = backoffHeartbeats;
+      this.pxPeers =
+          Collections.unmodifiableList(
+              new ArrayList<>(pxPeers == null ? Collections.emptyList() : pxPeers));
+      this.pruneReason = pruneReason == null ? PruneReasonTag.OTHER : pruneReason;
+    }
+
+    public long getBackoffHeartbeats() {
+      return backoffHeartbeats;
+    }
+
+    public List<BigInteger> getPxPeers() {
+      return pxPeers;
+    }
+
+    public PruneReasonTag getPruneReason() {
+      return pruneReason;
+    }
+  }
 
   /** Internal generator for unique message IDs */
   private static long ID_GENERATOR = 0;
@@ -305,6 +348,20 @@ public class Message extends SimpleEvent {
     return new Message(MSG_PRUNE, topic);
   }
 
+  public static final Message makePruneMessage(String topic, long backoffHeartbeats) {
+    return makePruneMessage(topic, backoffHeartbeats, Collections.emptyList());
+  }
+
+  public static final Message makePruneMessage(
+      String topic, long backoffHeartbeats, List<BigInteger> pxPeers) {
+    return makePruneMessage(topic, backoffHeartbeats, pxPeers, PruneReasonTag.OTHER);
+  }
+
+  public static final Message makePruneMessage(
+      String topic, long backoffHeartbeats, List<BigInteger> pxPeers, PruneReasonTag pruneReason) {
+    return new Message(MSG_PRUNE, topic, new PrunePayload(backoffHeartbeats, pxPeers, pruneReason));
+  }
+
   public static final Message makePublishMessage(String topic, Object value) {
     return new Message(MSG_PUBLISH, topic, value);
   }
@@ -404,5 +461,9 @@ public class Message extends SimpleEvent {
     }
     result.put("time", this.timestamp);
     return result;
+  }
+
+  public static void resetIdGenerator() {
+    ID_GENERATOR = 0;
   }
 }

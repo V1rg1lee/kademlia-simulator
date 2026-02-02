@@ -35,20 +35,35 @@ op_file = [_ for _ in csv_files if 'op' in _][0]
 msg_file = [_ for _ in csv_files if 'message' in _ or 'msg' in _][0]
 
 op_df = pd.read_csv(os.path.join(logsdir, op_file), index_col=False)
+msg_df = pd.read_csv(os.path.join(logsdir, msg_file), index_col=False)
 
-old_ids = op_df['src']
-mapping = {}
-for i in range(len(old_ids)):
-    mapping[old_ids[i]] = i + 1
+console.print(f"[INFO] Loaded {len(msg_df)} message records from {msg_file}", style="bold cyan")
+console.print(f"[INFO] Loaded {len(op_df)} operation records from {op_file}", style="bold cyan")
 
-new_ids = []
-for id in old_ids:
-    new_id = mapping[id]
-    new_ids.append(new_id)
+# Check if we have Kademlia operations or just GossipSub messages
+has_operations = len(op_df) > 0 and 'src' in op_df.columns and len(op_df['src'].dropna()) > 0
+console.print(f"[INFO] Mode: {'Kademlia Operations' if has_operations else 'GossipSub Messages'}", style="bold cyan")
 
-op_df["new_src"] = new_ids
+if has_operations:
+    # Kademlia operations mode
+    old_ids = op_df['src']
+    mapping = {}
+    for i in range(len(old_ids)):
+        mapping[old_ids[i]] = i + 1
 
-columns = [{"name": i, "id": i} for i in ['id', 'new_src', 'messages', 'type', 'src', 'start', 'stop']]
+    new_ids = []
+    for id in old_ids:
+        new_id = mapping[id]
+        new_ids.append(new_id)
+
+    op_df["new_src"] = new_ids
+    columns = [{"name": i, "id": i} for i in ['id', 'new_src', 'messages', 'type', 'src', 'start', 'stop']]
+    display_df = op_df
+else:
+    # GossipSub messages mode - show message statistics
+    display_df = msg_df.copy()
+    display_df['index'] = range(len(display_df))
+    columns = [{"name": i, "id": i} for i in display_df.columns]
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -100,7 +115,7 @@ app.layout = html.Div(
                         ),
                         html.Div(
                             dash_table.DataTable(
-                                data=op_df.to_dict("records"), 
+                                data=display_df.to_dict("records"), 
                                 columns=columns,
                                 id="table",
                                 style_cell={"textAlign": "center"}
@@ -140,8 +155,36 @@ app.layout = html.Div(
 
 @callback(Output("graph", "figure"), Input("table", "active_cell"))
 def update_graphs(active_cell):
-    msg_df = pd.read_csv(os.path.join(logsdir, msg_file), index_col=False)
+    # Always generate the message statistics chart for GossipSub mode
+    if not has_operations:
+        fig = go.Figure()
+        
+        fig.add_trace(go.Bar(
+            x=msg_df.index,
+            y=msg_df['msgsOut'] if 'msgsOut' in msg_df.columns else [0]*len(msg_df),
+            name='Messages Out',
+            marker=dict(color='blue')
+        ))
+        
+        if 'msgsIn' in msg_df.columns:
+            fig.add_trace(go.Bar(
+                x=msg_df.index,
+                y=msg_df['msgsIn'].fillna(0),
+                name='Messages In',
+                marker=dict(color='green')
+            ))
+        
+        fig.update_layout(
+            title="GossipSub Message Statistics",
+            xaxis_title="Node Index",
+            yaxis_title="Message Count",
+            barmode='group',
+            height=600,
+            showlegend=True
+        )
+        return fig
     
+    # Kademlia operations mode
     if active_cell:
         op_id = active_cell["row_id"]
         
@@ -180,8 +223,8 @@ def update_graphs(active_cell):
             max_op_id = op_df.iloc[ op_df['src'].astype(float).idxmax() ]
             min_op_id = op_df.iloc[ op_df['src'].astype(float).idxmin() ]
         else:
-            max_op_id = op_df["id"]
-            min_op_id = op_df["id"]
+            max_op_id = op_df["id"].iloc[0] if len(op_df) > 0 else 1
+            min_op_id = op_df["id"].iloc[0] if len(op_df) > 0 else 1
             
         fig = make_subplots(rows=1, cols=1)
         
@@ -215,4 +258,4 @@ def update_graphs(active_cell):
         return fig
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=True)

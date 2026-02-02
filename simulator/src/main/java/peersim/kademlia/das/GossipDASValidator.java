@@ -12,6 +12,7 @@ import peersim.kademlia.Message;
 import peersim.kademlia.das.operations.RandomSamplingOperationGossip;
 import peersim.kademlia.das.operations.SamplingOperation;
 import peersim.kademlia.das.operations.ValidatorSamplingOperation;
+import peersim.kademlia.gossipsub.GossipCommonConfig;
 import peersim.kademlia.gossipsub.GossipSubProtocol;
 
 public class GossipDASValidator extends GossipDAS {
@@ -38,7 +39,18 @@ public class GossipDASValidator extends GossipDAS {
 
   protected void handleInitNewBlock(Message m, int myPid) {
     currentBlock = (Block) m.body;
-    logger.warning("Validator Init block");
+    logger.fine("Validator Init block");
+
+    if (GossipCommonConfig.singleTopicEnabled) {
+      if (!started) {
+        String topic = GossipCommonConfig.singleTopicName;
+        started = true;
+        gossipsub.Join(topic);
+        GossipSubProtocol.registerBootstrapPeer(topic, gossipsub.getGossipNode().getId());
+      }
+      super.handleInitNewBlock(m, myPid);
+      return;
+    }
 
     if (!started) {
       String topic;
@@ -46,22 +58,22 @@ public class GossipDASValidator extends GossipDAS {
       row1 = CommonState.r.nextInt(KademliaCommonConfigDas.BLOCK_DIM_SIZE) + 1;
       topic = "Row" + row1;
       gossipsub.Join(topic);
-      GossipSubProtocol.getTable().addPeer(topic, gossipsub.getGossipNode().getId());
+      GossipSubProtocol.registerBootstrapPeer(topic, gossipsub.getGossipNode().getId());
 
       column1 = CommonState.r.nextInt(KademliaCommonConfigDas.BLOCK_DIM_SIZE) + 1;
       topic = "Column" + column1;
       gossipsub.Join(topic);
-      GossipSubProtocol.getTable().addPeer(topic, gossipsub.getGossipNode().getId());
+      GossipSubProtocol.registerBootstrapPeer(topic, gossipsub.getGossipNode().getId());
 
       row2 = CommonState.r.nextInt(KademliaCommonConfigDas.BLOCK_DIM_SIZE) + 1;
       topic = "Row" + row2;
       gossipsub.Join(topic);
-      GossipSubProtocol.getTable().addPeer(topic, gossipsub.getGossipNode().getId());
+      GossipSubProtocol.registerBootstrapPeer(topic, gossipsub.getGossipNode().getId());
 
       column2 = CommonState.r.nextInt(KademliaCommonConfigDas.BLOCK_DIM_SIZE) + 1;
       topic = "Column" + column2;
       gossipsub.Join(topic);
-      GossipSubProtocol.getTable().addPeer(topic, gossipsub.getGossipNode().getId());
+      GossipSubProtocol.registerBootstrapPeer(topic, gossipsub.getGossipNode().getId());
     } else {
       createValidatorSamplingOperation(row1, 0, CommonState.getTime(), null);
       createValidatorSamplingOperation(0, column1, CommonState.getTime(), null);
@@ -90,7 +102,7 @@ public class GossipDASValidator extends GossipDAS {
     if (row > 0) id = (long) row;
     else id = (long) column;
     samplingOp.put(id, op);
-    logger.warning("Sampling operation started validator " + op.getId());
+    logger.finer("Sampling operation started validator " + op.getId());
   }
 
   @Override
@@ -99,7 +111,7 @@ public class GossipDASValidator extends GossipDAS {
     // throw new UnsupportedOperationException("Unimplemented method 'messageReceived'");
     Sample[] samples = (Sample[]) m.value;
     String topic = (String) m.body;
-    logger.warning(
+    logger.finer(
         "Samples received " + samples.length + " topic " + topic + " from " + m.src.getId());
 
     for (Sample s : samples) {
@@ -124,6 +136,10 @@ public class GossipDASValidator extends GossipDAS {
       sendMessage(response, msg.src.getId());
     }
     toSend.clear();
+
+    if (GossipCommonConfig.singleTopicEnabled) {
+      return;
+    }
 
     long id;
     if (topic.contains("Column")) {

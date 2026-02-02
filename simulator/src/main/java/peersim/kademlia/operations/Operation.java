@@ -121,5 +121,9 @@ public abstract class Operation {
     this.stopTime = time;
   }
 
+  public static void resetIdGenerator() {
+    OPERATION_ID_GENERATOR = 0;
+  }
+
   public abstract Map<String, Object> toMap();
 }

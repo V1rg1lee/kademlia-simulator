@@ -22,6 +22,8 @@ import peersim.kademlia.Timeout;
 import peersim.kademlia.das.operations.SamplingOperation;
 import peersim.kademlia.gossipsub.GossipEvent;
 import peersim.kademlia.gossipsub.GossipSubProtocol;
+import peersim.kademlia.gossipsub.inference.passive.PassiveCoalitionRegistry;
+import peersim.kademlia.gossipsub.inference.passive.PassiveEgoMeshRegistry;
 import peersim.transport.BwTransport;
 
 public abstract class GossipDAS implements Cloneable, EDProtocol, GossipEvent {
@@ -91,6 +93,12 @@ public abstract class GossipDAS implements Cloneable, EDProtocol, GossipEvent {
    * @param event Object
    */
   public void processEvent(Node myNode, int myPid, Object event) {
+    if (gossipsub != null
+        && (PassiveCoalitionRegistry.shouldSuppressDASProtocol(gossipsub.getGossipNode().getId())
+            || PassiveEgoMeshRegistry.shouldSuppressDASProtocol(
+                gossipsub.getGossipNode().getId()))) {
+      return;
+    }
 
     Message m;
     SimpleEvent s = (SimpleEvent) event;

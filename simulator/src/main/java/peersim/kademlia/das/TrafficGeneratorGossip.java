@@ -39,6 +39,7 @@ public class TrafficGeneratorGossip implements Control {
   final String PAR_BLK_DIM_SIZE = "block_dim_size";
 
   final String PAR_NUM_SAMPLES = "num_samples";
+  final String PAR_INTERRUPT_AFTER_SECOND_BLOCK = "interrupt_after_second_block";
 
   int mapfn;
 
@@ -47,6 +48,7 @@ public class TrafficGeneratorGossip implements Control {
   long lastTime = 0;
   boolean first = true;
   boolean second = false;
+  boolean interruptAfterSecondBlock;
 
   // ______________________________________________________________________________________________
   public TrafficGeneratorGossip(String prefix) {
@@ -62,6 +64,8 @@ public class TrafficGeneratorGossip implements Control {
             prefix + "." + PAR_BLK_DIM_SIZE, KademliaCommonConfigDas.BLOCK_DIM_SIZE);
     KademliaCommonConfigDas.N_SAMPLES =
         Configuration.getInt(prefix + "." + PAR_NUM_SAMPLES, KademliaCommonConfigDas.N_SAMPLES);
+    interruptAfterSecondBlock =
+        Configuration.getBoolean(prefix + "." + PAR_INTERRUPT_AFTER_SECOND_BLOCK, true);
   }
 
   // ______________________________________________________________________________________________
@@ -91,21 +95,21 @@ public class TrafficGeneratorGossip implements Control {
       second = true;
     } else {
       if (!second) {
-        return true;
+        return interruptAfterSecondBlock;
       } else {
         second = false;
       }
     }
+    System.out.println("New block " + CommonState.getTime() + " " + b.getBlockId());
     for (int i = 0; i < Network.size(); i++) {
       Node n = Network.get(i);
       if (n.isUp()) {
 
         try {
-          System.out.println("New block " + CommonState.getTime() + " " + b.getBlockId());
           EDSimulator.add(0, generateNewBlockMessage(b), n, dasbuildpid);
           // successful = true;
         } catch (Exception e) {
-          System.out.println("Traffic error " + e);
+          System.err.println("Traffic error " + e);
         }
       }
     }
